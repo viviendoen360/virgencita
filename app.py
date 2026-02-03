@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import urllib.parse
 import os
 
@@ -35,13 +35,8 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .status-off {
-        padding: 20px;
-        border-radius: 10px;
-        background-color: #fff3cd;
-        color: #856404;
-        text-align: center;
-        border: 1px solid #ffeeba;
+    .calendar-btn {
+        background-color: #4285F4 !important; /* Azul Google */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -65,12 +60,30 @@ def generar_link_wa(telefono, mensaje):
     msg_encoded = urllib.parse.quote(mensaje)
     return f"https://wa.me/{tel_clean}?text={msg_encoded}"
 
+def generar_link_calendar(fecha_obj, nombre_entrega):
+    """
+    Crea un link para añadir evento a Google Calendar
+    """
+    # Formato fechas: YYYYMMDD
+    # Para evento de todo el día, start=dia, end=dia+1
+    f_inicio = fecha_obj.strftime('%Y%m%d')
+    f_fin = (fecha_obj + timedelta(days=1)).strftime('%Y%m%d')
+    
+    titulo = "🙏 Recibir Virgen María"
+    descripcion = f"Recibir la imagen de manos de {nombre_entrega}. \n\n{ORACION}"
+    
+    params = {
+        'action': 'TEMPLATE',
+        'text': titulo,
+        'details': descripcion,
+        'dates': f"{f_inicio}/{f_fin}"
+    }
+    return f"https://www.google.com/calendar/render?{urllib.parse.urlencode(params)}"
+
 def cargar_datos(archivo):
     try:
         df = pd.read_excel(archivo, engine='openpyxl')
-        # Limpiar nombres de columnas (quitar espacios y poner mayúscula inicial)
         df.columns = [c.strip().capitalize() for c in df.columns]
-        # Asegurar que la columna Fecha sea tipo fecha
         if 'Fecha' in df.columns:
             df['Fecha'] = pd.to_datetime(df['Fecha']).dt.date
         return df
@@ -85,89 +98,97 @@ st.title("🙏 Camino de la Virgen")
 df = None
 if os.path.exists(ARCHIVO_DEFAULT):
     df = cargar_datos(ARCHIVO_DEFAULT)
-    st.caption("✅ Lista cargada automáticamente desde el sistema.")
-
-uploaded_file = st.sidebar.file_uploader("📂 Actualizar lista (Excel)", type=["xlsx"])
-if uploaded_file:
+elif uploaded_file := st.sidebar.file_uploader("📂 Cargar lista (Excel)", type=["xlsx"]):
     df = cargar_datos(uploaded_file)
-    st.caption("✅ Lista actualizada manualmente.")
 
-# --- LÓGICA DE FECHAS ---
+# --- LÓGICA DEL PROGRAMA ---
 if df is not None:
-    # Verificación de columnas
-    req = {'Fecha', 'Nombre', 'Telefono', 'Departamento'}
-    if not req.issubset(df.columns):
-        st.error(f"⚠️ Faltan columnas en el Excel. Debe tener: {', '.join(req)}")
-    else:
-        # Obtener fecha de hoy
-        hoy = datetime.now().date()
+    # 1. SECCIÓN DE HOY (La portada principal)
+    hoy = datetime.now().date()
+    fila_hoy = df[df['Fecha'] == hoy]
+    
+    st.markdown("### 📅 Estado del día")
+    
+    if not fila_hoy.empty:
+        idx_hoy = fila_hoy.index[0]
+        p_recibe = df.iloc[idx_hoy]
         
-        # Buscar si HOY existe en la columna Fecha
-        fila_hoy = df[df['Fecha'] == hoy]
-        
-        if not fila_hoy.empty:
-            # --- CASO 1: HOY ES DÍA DE ENTREGA ---
-            idx_hoy = fila_hoy.index[0]
+        if idx_hoy > 0:
+            p_entrega = df.iloc[idx_hoy - 1]
             
-            p_recibe = df.iloc[idx_hoy]
+            st.info(f"**{hoy.strftime('%d/%m/%Y')}** - Hoy hay cambio de custodia.")
             
-            # Quién entrega es la persona de la fila ANTERIOR en la lista
-            # (Si es la primera fila, no hay anterior, manejamos ese error)
-            if idx_hoy > 0:
-                p_entrega = df.iloc[idx_hoy - 1]
-                
-                st.info(f"📅 **{hoy.strftime('%d/%m/%Y')}** - Hoy hay cambio de custodia.")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown(f"""
-                    <div class="card">
-                        <div style='font-size:2em;'>📤</div>
-                        <h3>Entrega</h3>
-                        <h2>{p_entrega['Nombre']}</h2>
-                        <p>{p_entrega['Departamento']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"""
+                <div class="card">
+                    <div style='font-size:2em;'>📤</div>
+                    <h3>Entrega</h3>
+                    <h4>{p_entrega['Nombre']}</h4>
+                    <small>{p_entrega['Departamento']}</small>
+                </div>
+                """, unsafe_allow_html=True)
 
-                with col2:
-                    st.markdown(f"""
-                    <div class="card">
-                        <div style='font-size:2em;'>📥</div>
-                        <h3>Recibe</h3>
-                        <h2>{p_recibe['Nombre']}</h2>
-                        <p>{p_recibe['Departamento']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Botones de WhatsApp
-                msg_e = f"👋 Hola *{p_entrega['Nombre']}*, hoy ({hoy}) entregas la imagen de la Virgen a *{p_recibe['Nombre']}* ({p_recibe['Departamento']}).\n\n{ORACION}"
-                msg_r = f"👋 Hola *{p_recibe['Nombre']}*, hoy ({hoy}) recibes la visita de la Virgen de manos de *{p_entrega['Nombre']}*.\n\n{ORACION}"
-                
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.link_button(f"📲 Avisar a {p_entrega['Nombre']}", generar_link_wa(p_entrega['Telefono'], msg_e))
-                with c2:
-                    st.link_button(f"📩 Avisar a {p_recibe['Nombre']}", generar_link_wa(p_recibe['Telefono'], msg_r))
+            with col2:
+                st.markdown(f"""
+                <div class="card">
+                    <div style='font-size:2em;'>📥</div>
+                    <h3>Recibe</h3>
+                    <h4>{p_recibe['Nombre']}</h4>
+                    <small>{p_recibe['Departamento']}</small>
+                </div>
+                """, unsafe_allow_html=True)
             
-            else:
-                st.warning("Hoy es el primer día de la lista. No hay registro de quién entrega (fila anterior).")
-                st.info(f"Recibe hoy: **{p_recibe['Nombre']}**")
-
+            # Botones WA
+            msg_e = f"👋 Hola *{p_entrega['Nombre']}*, hoy ({hoy}) entregas la imagen de la Virgen a *{p_recibe['Nombre']}* ({p_recibe['Departamento']}).\n\n{ORACION}"
+            msg_r = f"👋 Hola *{p_recibe['Nombre']}*, hoy ({hoy}) recibes la visita de la Virgen de manos de *{p_entrega['Nombre']}*.\n\n{ORACION}"
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.link_button(f"📲 Avisar a {p_entrega['Nombre']}", generar_link_wa(p_entrega['Telefono'], msg_e))
+            with c2:
+                st.link_button(f"📩 Avisar a {p_recibe['Nombre']}", generar_link_wa(p_recibe['Telefono'], msg_r))
         else:
-            # --- CASO 2: HOY NO ESTÁ EN LA LISTA (Feriado/Fin de semana) ---
-            st.markdown(f"""
-            <div class="status-off">
-                <h3>⏸️ Hoy no hay entregas programadas</h3>
-                <p>Fecha: {hoy.strftime('%d/%m/%Y')}</p>
-                <p>La Virgen permanece con la última persona asignada.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.info(f"Recibe hoy: **{p_recibe['Nombre']}** (Primer día de la lista)")
+    else:
+        st.warning(f"Hoy ({hoy.strftime('%d/%m')}) no hay entregas programadas.")
+
+    # 2. NUEVA SECCIÓN: BUSCADOR PERSONAL Y CALENDARIO
+    st.markdown("---")
+    st.header("🔍 Busca tu fecha")
+    st.write("Selecciona tu nombre para saber cuándo te toca y añadirlo a tu agenda.")
+
+    lista_nombres = sorted(df['Nombre'].unique())
+    nombre_seleccionado = st.selectbox("Escribe o selecciona tu nombre:", lista_nombres)
+
+    if nombre_seleccionado:
+        # Filtrar las filas de esta persona
+        mis_turnos = df[df['Nombre'] == nombre_seleccionado]
+        
+        if not mis_turnos.empty:
+            st.success(f"Hola **{nombre_seleccionado}**, te toca recibir la imagen en estas fechas:")
             
-            # Opcional: Mostrar quién fue el último en tenerla
-            fechas_pasadas = df[df['Fecha'] < hoy]
-            if not fechas_pasadas.empty:
-                ultimo = fechas_pasadas.iloc[-1]
-                st.write(f"📍 Última ubicación conocida ({ultimo['Fecha'].strftime('%d/%m')}): **{ultimo['Nombre']}** ({ultimo['Departamento']})")
+            for idx, row in mis_turnos.iterrows():
+                fecha_turno = row['Fecha']
+                
+                # Averiguar quién entrega (fila anterior)
+                nombre_entrega = "un compañero"
+                if idx > 0:
+                    nombre_entrega = df.iloc[idx - 1]['Nombre']
+                
+                # Crear Link Calendar
+                link_cal = generar_link_calendar(fecha_turno, nombre_entrega)
+                
+                # Mostrar fila con fecha y botón
+                col_a, col_b = st.columns([2, 2])
+                with col_a:
+                    st.markdown(f"🗓️ **{fecha_turno.strftime('%d/%m/%Y')}**")
+                    st.caption(f"Recibes de: {nombre_entrega}")
+                with col_b:
+                    st.link_button("📅 Agendar en Google", link_cal)
+                st.markdown("---") # Separador entre fechas si tiene varias
+        else:
+            st.info("No tienes fechas asignadas en la lista actual.")
 
 else:
     st.warning("⚠️ No se ha cargado ninguna lista. Sube el archivo Excel.")
