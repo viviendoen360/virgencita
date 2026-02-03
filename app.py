@@ -11,9 +11,10 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS VISUALES ---
+# --- ESTILOS VISUALES (CSS CORREGIDO) ---
 st.markdown("""
     <style>
+    /* Botones estilo WhatsApp */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
@@ -27,16 +28,28 @@ st.markdown("""
         background-color: #128C7E;
         color: white;
     }
+    
+    /* ESTILO DE TARJETAS (Fixed para Dark Mode) */
     .card {
+        background-color: #f0f2f6; /* Fondo gris claro */
         padding: 20px;
         border-radius: 10px;
-        background-color: #f0f2f6;
         margin-bottom: 20px;
         text-align: center;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        
+        /* FUERZA EL TEXTO A NEGRO SIEMPRE */
+        color: #31333F !important; 
     }
+    
+    /* Forzar color negro en todos los textos dentro de la tarjeta */
+    .card h3, .card h4, .card p, .card small {
+        color: #31333F !important;
+    }
+
+    /* Botón de Calendario (Azul) */
     .calendar-btn {
-        background-color: #4285F4 !important; /* Azul Google */
+        background-color: #4285F4 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -61,11 +74,6 @@ def generar_link_wa(telefono, mensaje):
     return f"https://wa.me/{tel_clean}?text={msg_encoded}"
 
 def generar_link_calendar(fecha_obj, nombre_entrega):
-    """
-    Crea un link para añadir evento a Google Calendar
-    """
-    # Formato fechas: YYYYMMDD
-    # Para evento de todo el día, start=dia, end=dia+1
     f_inicio = fecha_obj.strftime('%Y%m%d')
     f_fin = (fecha_obj + timedelta(days=1)).strftime('%Y%m%d')
     
@@ -103,7 +111,7 @@ elif uploaded_file := st.sidebar.file_uploader("📂 Cargar lista (Excel)", type
 
 # --- LÓGICA DEL PROGRAMA ---
 if df is not None:
-    # 1. SECCIÓN DE HOY (La portada principal)
+    # 1. SECCIÓN DE HOY
     hoy = datetime.now().date()
     fila_hoy = df[df['Fecha'] == hoy]
     
@@ -120,6 +128,7 @@ if df is not None:
             
             col1, col2 = st.columns(2)
             with col1:
+                # Se usa la clase .card que fuerza el texto negro
                 st.markdown(f"""
                 <div class="card">
                     <div style='font-size:2em;'>📤</div>
@@ -153,16 +162,15 @@ if df is not None:
     else:
         st.warning(f"Hoy ({hoy.strftime('%d/%m')}) no hay entregas programadas.")
 
-    # 2. NUEVA SECCIÓN: BUSCADOR PERSONAL Y CALENDARIO
+    # 2. BUSCADOR
     st.markdown("---")
     st.header("🔍 Busca tu fecha")
-    st.write("Selecciona tu nombre para saber cuándo te toca y añadirlo a tu agenda.")
+    st.write("Selecciona tu nombre para saber cuándo te toca.")
 
     lista_nombres = sorted(df['Nombre'].unique())
     nombre_seleccionado = st.selectbox("Escribe o selecciona tu nombre:", lista_nombres)
 
     if nombre_seleccionado:
-        # Filtrar las filas de esta persona
         mis_turnos = df[df['Nombre'] == nombre_seleccionado]
         
         if not mis_turnos.empty:
@@ -171,22 +179,19 @@ if df is not None:
             for idx, row in mis_turnos.iterrows():
                 fecha_turno = row['Fecha']
                 
-                # Averiguar quién entrega (fila anterior)
                 nombre_entrega = "un compañero"
                 if idx > 0:
                     nombre_entrega = df.iloc[idx - 1]['Nombre']
                 
-                # Crear Link Calendar
                 link_cal = generar_link_calendar(fecha_turno, nombre_entrega)
                 
-                # Mostrar fila con fecha y botón
                 col_a, col_b = st.columns([2, 2])
                 with col_a:
                     st.markdown(f"🗓️ **{fecha_turno.strftime('%d/%m/%Y')}**")
                     st.caption(f"Recibes de: {nombre_entrega}")
                 with col_b:
                     st.link_button("📅 Agendar en Google", link_cal)
-                st.markdown("---") # Separador entre fechas si tiene varias
+                st.markdown("---")
         else:
             st.info("No tienes fechas asignadas en la lista actual.")
 
