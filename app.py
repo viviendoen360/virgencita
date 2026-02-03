@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS VISUALES (FIX DARK MODE) ---
+# --- ESTILOS VISUALES ---
 st.markdown("""
     <style>
     /* Botones estilo WhatsApp */
@@ -31,18 +31,14 @@ st.markdown("""
     
     /* ESTILO DE TARJETAS (Fixed para Dark Mode) */
     .card {
-        background-color: #f0f2f6; /* Fondo gris claro */
+        background-color: #f0f2f6; 
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 20px;
         text-align: center;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        
-        /* FUERZA EL TEXTO A NEGRO SIEMPRE */
         color: #31333F !important; 
     }
-    
-    /* Forzar color negro en todos los textos dentro de la tarjeta */
     .card h3, .card h4, .card p, .card small {
         color: #31333F !important;
     }
@@ -102,20 +98,19 @@ def cargar_datos(archivo):
 # --- INTERFAZ PRINCIPAL ---
 st.title("🙏 Camino de la Virgen")
 
-# 1. BARRA LATERAL (Siempre visible)
-st.sidebar.header("Configuración")
-uploaded_file = st.sidebar.file_uploader("📂 Actualizar lista (Excel)", type=["xlsx"])
+# --- CARGA DE ARCHIVO (MOVIDO AL CENTRO) ---
+# Usamos un "expander" para que no ocupe espacio si no se usa
+with st.expander("📂 Cargar / Actualizar lista (Excel)"):
+    uploaded_file = st.file_uploader("Sube tu archivo actualizado aquí:", type=["xlsx"])
 
-# 2. LÓGICA DE CARGA (Prioridad: Archivo subido > Archivo en GitHub)
+# Lógica de Prioridad:
 df = None
-
 if uploaded_file:
     df = cargar_datos(uploaded_file)
     if df is not None:
-        st.sidebar.success("✅ Usando lista subida manualmente")
+        st.success("✅ Usando lista subida manualmente")
 elif os.path.exists(ARCHIVO_DEFAULT):
     df = cargar_datos(ARCHIVO_DEFAULT)
-    # st.sidebar.info("Usando lista predeterminada del sistema")
 
 # --- LÓGICA DEL PROGRAMA ---
 if df is not None:
@@ -204,4 +199,7 @@ if df is not None:
 
 else:
     st.warning("⚠️ No se ha cargado ninguna lista.")
-    st.info("Sube el archivo Excel en el menú de la izquierda.")
+    # Si no hay lista, mostramos el uploader abiertamente para que sea obvio
+    uploaded_file = st.file_uploader("📂 Sube el archivo Excel aquí:", type=["xlsx"])
+    if uploaded_file:
+         st.experimental_rerun()
