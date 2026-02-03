@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ESTILOS VISUALES (CSS CORREGIDO) ---
+# --- ESTILOS VISUALES (FIX DARK MODE) ---
 st.markdown("""
     <style>
     /* Botones estilo WhatsApp */
@@ -102,16 +102,24 @@ def cargar_datos(archivo):
 # --- INTERFAZ PRINCIPAL ---
 st.title("🙏 Camino de la Virgen")
 
-# Carga de datos
+# 1. BARRA LATERAL (Siempre visible)
+st.sidebar.header("Configuración")
+uploaded_file = st.sidebar.file_uploader("📂 Actualizar lista (Excel)", type=["xlsx"])
+
+# 2. LÓGICA DE CARGA (Prioridad: Archivo subido > Archivo en GitHub)
 df = None
-if os.path.exists(ARCHIVO_DEFAULT):
-    df = cargar_datos(ARCHIVO_DEFAULT)
-elif uploaded_file := st.sidebar.file_uploader("📂 Cargar lista (Excel)", type=["xlsx"]):
+
+if uploaded_file:
     df = cargar_datos(uploaded_file)
+    if df is not None:
+        st.sidebar.success("✅ Usando lista subida manualmente")
+elif os.path.exists(ARCHIVO_DEFAULT):
+    df = cargar_datos(ARCHIVO_DEFAULT)
+    # st.sidebar.info("Usando lista predeterminada del sistema")
 
 # --- LÓGICA DEL PROGRAMA ---
 if df is not None:
-    # 1. SECCIÓN DE HOY
+    # A. SECCIÓN DE HOY
     hoy = datetime.now().date()
     fila_hoy = df[df['Fecha'] == hoy]
     
@@ -128,7 +136,6 @@ if df is not None:
             
             col1, col2 = st.columns(2)
             with col1:
-                # Se usa la clase .card que fuerza el texto negro
                 st.markdown(f"""
                 <div class="card">
                     <div style='font-size:2em;'>📤</div>
@@ -162,7 +169,7 @@ if df is not None:
     else:
         st.warning(f"Hoy ({hoy.strftime('%d/%m')}) no hay entregas programadas.")
 
-    # 2. BUSCADOR
+    # B. BUSCADOR
     st.markdown("---")
     st.header("🔍 Busca tu fecha")
     st.write("Selecciona tu nombre para saber cuándo te toca.")
@@ -196,4 +203,5 @@ if df is not None:
             st.info("No tienes fechas asignadas en la lista actual.")
 
 else:
-    st.warning("⚠️ No se ha cargado ninguna lista. Sube el archivo Excel.")
+    st.warning("⚠️ No se ha cargado ninguna lista.")
+    st.info("Sube el archivo Excel en el menú de la izquierda.")
