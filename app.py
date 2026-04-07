@@ -81,17 +81,16 @@ def generar_link_calendar(fecha_obj, nombre_entrega):
     params = {'action': 'TEMPLATE', 'text': titulo, 'details': descripcion, 'dates': f"{f_inicio}/{f_fin}"}
     return f"https://www.google.com/calendar/render?{urllib.parse.urlencode(params)}"
 
-def cargar_datos_demo():
-    """Genera datos de prueba para la previsualización en Canvas"""
-    hoy = datetime.now().date()
-    datos = {
-        'Fecha': [hoy - timedelta(days=1), hoy, hoy + timedelta(days=1), hoy + timedelta(days=2)],
-        'Nombre': ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Torres'],
-        'Telefono': ['0987654321', '0991234567', '0981112233', '0999888777'],
-        'Departamento': ['Contabilidad', 'Recursos Humanos', 'Auditoría', 'Legal']
-    }
-    df = pd.DataFrame(datos)
-    return df
+def cargar_datos(archivo):
+    try:
+        df = pd.read_excel(archivo, engine='openpyxl')
+        df.columns = [c.strip().capitalize() for c in df.columns]
+        if 'Fecha' in df.columns: 
+            df['Fecha'] = pd.to_datetime(df['Fecha']).dt.date
+        return df
+    except Exception as e:
+        st.error(f"Error leyendo el archivo: {e}")
+        return None
 
 # --- INTERFAZ PRINCIPAL ---
 st.title("🙏 Camino de la Virgen")
@@ -105,8 +104,11 @@ st.markdown(f"""
     </div>
     """, unsafe_allow_html=True)
 
-# Usamos datos de demo para que funcione aquí en la previsualización
-df = cargar_datos_demo()
+# Carga directa de tu Excel real
+ARCHIVO_DEFAULT = "lista.xlsx"
+df = None
+if os.path.exists(ARCHIVO_DEFAULT):
+    df = cargar_datos(ARCHIVO_DEFAULT)
 
 if df is not None:
     # A. CONSULTA POR FECHA
@@ -139,7 +141,7 @@ if df is not None:
         else:
             st.info(f"Recibe: **{p_recibe['Nombre']}** (Primer día de la lista, {fecha_sel.strftime('%d/%m/%Y')})")
     else:
-        st.warning("No hay entregas programadas para esta fecha en los datos de prueba.")
+        st.warning("No hay entregas programadas para esta fecha.")
 
     # B. BUSCADOR
     st.markdown("---")
@@ -154,3 +156,6 @@ if df is not None:
             n_e = df.iloc[i-1]['Nombre'] if i > 0 else "Inicio"
             st.write(f"🗓️ **{f_t.strftime('%d/%m/%Y')}** (Entrega: {n_e})")
             st.link_button("📅 Agendar en Google", generar_link_calendar(f_t, n_e))
+else:
+    st.error("⚠️ No se encontró la base de datos.")
+    st.info("Por favor, sube el archivo 'lista.xlsx' al repositorio de GitHub.")
